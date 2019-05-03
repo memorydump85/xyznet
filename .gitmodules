@@ -1,0 +1,3 @@
+[submodule "deps/cppkit"]
+	path = deps/cppkit
+	url = git@github.com:memorydump85/cppkit.git
