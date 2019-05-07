@@ -1,0 +1,15 @@
+// See https://aka.ms/vscode-remote/containers for the
+// documentation about the devcontainer.json format
+{
+	"name": "Existing Dockerfile",
+	"context": "..",
+	"dockerFile": "../Dockerfile",
+	"appPort": [],
+	"extensions": [
+		"ms-vscode.cpptools"
+	],
+	"runArgs": [
+		"-v",
+		"/var/run/docker.sock:/var/run/docker.sock"
+	]
+}

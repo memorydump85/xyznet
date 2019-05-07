@@ -18,7 +18,7 @@ struct LidarSensorScanGenerator {
     static const float ANGLE_RANGE;
     static const std::size_t NUM_RAYS_PER_SCAN = 1080;
     static const std::size_t NUM_SCANS = 32;
- 
+
     const Eigen::Vector3f pos;
     const Eigen::Matrix3f rot_;
     std::size_t ray_ix_ = 0;
@@ -40,9 +40,10 @@ struct LidarSensorScanGenerator {
         const auto &theta = START_ANGLE + (ray_ix_ % NUM_RAYS_PER_SCAN) * DEL_THETA;
 
         const auto &scan_ix = ray_ix_ / NUM_RAYS_PER_SCAN;
-        const auto &phi = mathx::to_radians(-16.f + 4*scan_ix);
+        const auto &phi = mathx::to_radians(3.141569 + 4*(-16.f + scan_ix));
+        std::cout << strfmt("# ray_ix:%lu scan_ix:%lu phi:%.2f\n", ray_ix_, scan_ix, phi);
 
-        const auto &xyz = Eigen::Vector3f(sin(theta)*cos(phi), sin(theta)*sin(phi), cos(theta));
+        const auto &xyz = Eigen::Vector3f(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi));
         return rot_ * xyz;
     }
 
@@ -54,8 +55,8 @@ struct LidarSensorScanGenerator {
     }
 };
 
-const float LidarSensorScanGenerator::START_ANGLE = mathx::to_radians(0.f);
-const float LidarSensorScanGenerator::ANGLE_RANGE = mathx::to_radians(359.f);
+const float LidarSensorScanGenerator::START_ANGLE = mathx::to_radians(+95.f);
+const float LidarSensorScanGenerator::ANGLE_RANGE = mathx::to_radians(350.f);
 
 
 static
@@ -108,7 +109,7 @@ int main(int argc, char *argv[]) {
                 "Trajectory does not specify an orientation for all positions" );
 
     std::size_t voffset = 1;
-    const auto MAX_RAY_DIST = 30.f;
+    // const auto MAX_RAY_DIST = 30.f;
 
     // For each position in the trajectory, simulate a Lidar Scan
     for (std::size_t i=0; i < trajectory.vertices.size(); ++i) {
@@ -118,8 +119,8 @@ int main(int argc, char *argv[]) {
 
         LidarSensorScanGenerator scan(pos, orientation);
         for (; scan.has_next(); scan.next()) {
-            float dist = mesh.cast_ray(pos, scan.peek());
-            if (dist >= MAX_RAY_DIST) dist = 2.0;
+            float dist = 2.0; //mesh.cast_ray(pos, scan.peek());
+            //if (dist >= MAX_RAY_DIST) dist = 2.0;
             const Eigen::Vector3f &p = pos + dist * scan.peek();
             std::cout << strfmt("v %.6f %.6f %.6f\n", p(0), p(1), p(2));
             ++voffset;
