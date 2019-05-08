@@ -40,8 +40,7 @@ struct LidarSensorScanGenerator {
         const auto &theta = START_ANGLE + (ray_ix_ % NUM_RAYS_PER_SCAN) * DEL_THETA;
 
         const auto &scan_ix = ray_ix_ / NUM_RAYS_PER_SCAN;
-        const auto &phi = mathx::to_radians(3.141569 + 4*(-16.f + scan_ix));
-        std::cout << strfmt("# ray_ix:%lu scan_ix:%lu phi:%.2f\n", ray_ix_, scan_ix, phi);
+        const auto &phi = mathx::to_radians(90 + 3*(-16.f + scan_ix));
 
         const auto &xyz = Eigen::Vector3f(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi));
         return rot_ * xyz;
@@ -55,7 +54,7 @@ struct LidarSensorScanGenerator {
     }
 };
 
-const float LidarSensorScanGenerator::START_ANGLE = mathx::to_radians(+95.f);
+const float LidarSensorScanGenerator::START_ANGLE = mathx::to_radians(+185.f);
 const float LidarSensorScanGenerator::ANGLE_RANGE = mathx::to_radians(350.f);
 
 
@@ -65,22 +64,23 @@ std::size_t dbg__output_marker_(
     const Eigen::Vector3f &orientation,
     const std::size_t offset )
 {
-    Eigen::Matrix<float, 4, 4> arrow_head;
-    arrow_head << -0.10, +0.00, +0.10, +0.00,
-                  +0.10, +0.00, +0.10, -0.25,
-                  -0.05, +0.00, -0.05, +0.00,
-                  +1.00, +1.00, +1.00, +1.00    ;
+    Eigen::Matrix<float, 4, 6> arrow_head;
+    arrow_head << +0.00, -0.10, -0.10, -0.10, +0.25, +0.0,
+                  +0.00, -0.10, +0.10, +0.00, +0.00, +0.0,
+                  +0.00, -0.00, +0.00, +0.10, +0.00, +0.001,
+                  +1.00, +1.00, +1.00, +1.00, +1.00, +1.00 ;
     const auto T = mathx::xyzrph_to_matrix(pos, orientation);
     arrow_head = T * arrow_head;
 
-    for (std::size_t i=0; i < 4; ++i) {
+    for (int i=0; i < arrow_head.cols(); ++i) {
         std::cout << strfmt("v %.6f %.6f %.6f\n", arrow_head(0, i), arrow_head(1, i), arrow_head(2, i));
     }
     std::cout << "o marker" << offset << "\n";
-    std::cout << strfmt("f %lu %lu %lu\n", offset + 0, offset + 1, offset + 3);
-    std::cout << strfmt("f %lu %lu %lu\n", offset + 3, offset + 1, offset + 2);
+    std::cout << strfmt("f %lu %lu %lu\n", offset + 0, offset + 1, offset + 4);
+    std::cout << strfmt("f %lu %lu %lu\n", offset + 0, offset + 2, offset + 4);
+    std::cout << strfmt("f %lu %lu %lu\n", offset + 5, offset + 3, offset + 4);
 
-    return 4;
+    return arrow_head.cols();
 }
 
 
@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
                 "Trajectory does not specify an orientation for all positions" );
 
     std::size_t voffset = 1;
-    // const auto MAX_RAY_DIST = 30.f;
+    const auto MAX_RAY_DIST = 30.f;
 
     // For each position in the trajectory, simulate a Lidar Scan
     for (std::size_t i=0; i < trajectory.vertices.size(); ++i) {
@@ -119,8 +119,8 @@ int main(int argc, char *argv[]) {
 
         LidarSensorScanGenerator scan(pos, orientation);
         for (; scan.has_next(); scan.next()) {
-            float dist = 2.0; //mesh.cast_ray(pos, scan.peek());
-            //if (dist >= MAX_RAY_DIST) dist = 2.0;
+            float dist = mesh.cast_ray(pos, scan.peek());
+            if (dist >= MAX_RAY_DIST) continue;
             const Eigen::Vector3f &p = pos + dist * scan.peek();
             std::cout << strfmt("v %.6f %.6f %.6f\n", p(0), p(1), p(2));
             ++voffset;
