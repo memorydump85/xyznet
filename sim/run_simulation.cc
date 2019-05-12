@@ -1,6 +1,8 @@
 #include <cstdio>
 #include <iostream>
 #include <fstream>
+#include <vector>
+#include <random>
 
 #include <cppkit/mathx.hh>
 #include <cppkit/rigidbody.hh>
@@ -51,6 +53,21 @@ struct LidarSensorScanGenerator {
         const auto& dir = peek();
         ++ray_ix_;
         return dir;
+    }
+
+    /// Get a vector containing rays for an entire scan
+    static
+    std::vector<Eigen::Vector3f> get_scan(
+        const Eigen::Vector3f &pos,
+        const Eigen::Vector3f &orientation )
+    {
+        std::vector<Eigen::Vector3f> rays;
+        rays.reserve(LidarSensorScanGenerator::NUM_SCANS * LidarSensorScanGenerator::NUM_RAYS_PER_SCAN);
+
+        for (LidarSensorScanGenerator s(pos, orientation); s.has_next(); s.next()) {
+            rays.push_back(s.peek());
+        }
+        return std::move(rays);
     }
 };
 
@@ -108,22 +125,31 @@ int main(int argc, char *argv[]) {
     CHECK_MSG( trajectory.vertices.size() == trajectory.normals.size(),
                 "Trajectory does not specify an orientation for all positions" );
 
-    std::size_t voffset = 1;
+    std::size_t vx_offset = 1;
     const auto MAX_RAY_DIST = 30.f;
+
+    /// Noise model
+    std::random_device rand_device;
+    std::mt19937 rand_engine(rand_device());
+    std::normal_distribution<double> noise_model_(0, 0.025/3);
 
     // For each position in the trajectory, simulate a Lidar Scan
     for (std::size_t i=0; i < trajectory.vertices.size(); ++i) {
         const auto &pos = trajectory.vertices[i];
         const auto &orientation = trajectory.normals[i];
-        voffset += dbg__output_marker_(pos, orientation, voffset);
 
-        LidarSensorScanGenerator scan(pos, orientation);
-        for (; scan.has_next(); scan.next()) {
-            float dist = mesh.cast_ray(pos, scan.peek());
+        std::cout << strfmt("\n\n# trajectory position #%lu\n", i);
+        vx_offset += dbg__output_marker_(pos, orientation, vx_offset);
+        std::cout << '\n';
+
+        const auto &scan_rays = LidarSensorScanGenerator::get_scan(pos, orientation);
+
+        for (std::size_t i=0; i < scan_rays.size(); ++i) {
+            const float dist = mesh.cast_ray(pos, scan_rays[i]) + noise_model_(rand_engine);
             if (dist >= MAX_RAY_DIST) continue;
-            const Eigen::Vector3f &p = pos + dist * scan.peek();
+            const Eigen::Vector3f &p = pos + dist * scan_rays[i];
             std::cout << strfmt("v %.6f %.6f %.6f\n", p(0), p(1), p(2));
-            ++voffset;
+            ++vx_offset;
         }
     }
 }

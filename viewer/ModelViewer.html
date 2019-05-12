@@ -152,6 +152,9 @@ f 4 5 6
                     ...vertices[fields[3] - 1]
                 );
             }
+            else {
+                console.error(`Ignoring source line ${lineNum}: ${sourceLine}`)
+            }
         }
 
         function disposeArray() {

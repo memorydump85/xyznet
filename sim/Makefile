@@ -14,5 +14,5 @@ run_simulation.x: simulator.hh run_simulation.cc
 simulator_test.x: simulator.hh simulator_test.cc
 	c++ $(CFLAGS) $(INCLUDES) -o $@ simulator_test.cc
 
-clean: *
+clean:
 	rm -f simulator_test.x run_simulation.x
