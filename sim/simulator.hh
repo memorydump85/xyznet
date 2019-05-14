@@ -151,7 +151,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
         ++linenum;
         if(line.empty() || line[0] == '#') continue;
 
-        cppkit::StringTokenGenerator tokens(line, ' ');
+        cppkit::StringTokenGenerator tokens(line, ' ', /*ignore_consecutive*/ true);
         if (!tokens.has_next()) fail( ERR_INVALID_LINE );
 
         const auto &tok0 = tokens.next();

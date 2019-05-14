@@ -66,11 +66,11 @@ DEFINE_TEST(load_wavefront) {
     std::istringstream ss(
         "v 0.0 0.0 0.0\n"
         "v 1.0 0.0 0.0\n"
-        "v 0.0 1.0 0.0\n"
+        "v  0.0 1.0  0.0\n"
         "vn 1.0 1.0 0.0\n"
-        "vn 0.0 1.0 0.0\n"
-        "f 1/0/0 2/0/0 3/0/0\n"
-        "f 2 3 1\n"
+        "vn 0.0 1.0  0.0\n"
+        "f 1/0/0 2/0/0  3/0/0\n"
+        "f 2 3  1\n"
     );
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(ss);
     CHECK( mesh.vertices.size() == 3 );
