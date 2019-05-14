@@ -96,6 +96,10 @@ f 4 5 6
         scene.background = new THREE.Color(0x181818);
         scene.add(new THREE.AmbientLight(0xffffff));
 
+        var gridHelper = new THREE.GridHelper( 5, 10, 0x201010, 0x101010);
+        gridHelper.geometry.rotateX( Math.PI / 2 );
+        scene.add( gridHelper );
+
         var axes = new THREE.AxesHelper(2);
         scene.add( axes );
 
