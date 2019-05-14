@@ -99,6 +99,10 @@ float intersect_ray_with_triangle(
 }
 
 
+//
+// NOTE: This implementation may not be robust when presented with a
+// malformed OBJ source.
+//
 TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
     std::size_t linenum = 0;
     std::string line;
