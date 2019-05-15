@@ -75,7 +75,7 @@ DEFINE_TEST(load_wavefront) {
     );
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(ss);
     CHECK( mesh.vertices.size() == 3 );
-    CHECK( mesh.indices.size() == 6 );
+    CHECK( mesh.ix_tuples.size() == 2 );
     CHECK( mesh.normals.size() == 2 );
 }
 

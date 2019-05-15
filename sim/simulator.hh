@@ -35,17 +35,17 @@ class TriangleMesh {
 public:
     const std::vector<Eigen::Vector3f> vertices;
     const std::vector<Eigen::Vector3f> normals;
-    const std::vector<std::size_t> indices;
+    const std::vector<Eigen::Vector3i> ix_tuples;
 
 public:
     TriangleMesh(
         const std::vector<Eigen::Vector3f> &vx,
-        const std::vector<std::size_t> &ix,
+        const std::vector<Eigen::Vector3i> &ix,
         const std::vector<Eigen::Vector3f> &nm )
         : vertices(vx)
         , normals(nm)
-        , indices(ix)
-        { CHECK( (indices.size() % 3) == 0 ); }
+        , ix_tuples(ix)
+        { }
 
     /// Load mesh from .OBJ file
     static TriangleMesh from_wavefront_obj(std::istream& is);
@@ -181,7 +181,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
     };
 
     std::vector<Eigen::Vector3f> vertices;
-    std::vector<std::size_t> indices;
+    std::vector<Eigen::Vector3i> ix_tuples;
     std::vector<Eigen::Vector3f> normals;
 
     const auto part1 = [] (const std::string &s, const char sep = '/') {
@@ -209,18 +209,15 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
             normals.emplace_back(i, j, k);
         }
         else if (tok0 == "f") {
-            // NOTE: OBJ file-format specifies 1-based vertex indices
+            // NOTE: OBJ file-format specifies 1-based vertex ix_tuples
             std::size_t i = std::stoul(part1(tokens.next())) - 1;
-            CHECK( i < vertices.size() );
-            indices.push_back(i);
-
             std::size_t j = std::stoul(part1(tokens.next())) - 1;
-            CHECK( j < vertices.size() );
-            indices.push_back(j);
-
             std::size_t k = std::stoul(part1(tokens.next())) - 1;
+
+            CHECK( i < vertices.size() );
+            CHECK( j < vertices.size() );
             CHECK( k < vertices.size() );
-            indices.push_back(k);
+            ix_tuples.emplace_back(i, j, k);
 
             if (tokens.has_next()) fail( ERR_TRIFACES_ONLY );
         }
@@ -235,7 +232,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
         }
     }
 
-    return std::move(TriangleMesh(vertices, indices, normals));
+    return std::move(TriangleMesh(vertices, ix_tuples, normals));
 }
 
 
@@ -245,10 +242,10 @@ float TriangleMesh::cast_ray(
 ) const
 {
     float min_dist = std::numeric_limits<float>::infinity();
-    for (std::size_t i=0; i < indices.size(); i+=3) {
-        const auto& v0 = vertices[indices[i]];
-        const auto& v1 = vertices[indices[i+1]];
-        const auto& v2 = vertices[indices[i+2]];
+    for (const auto &ix : ix_tuples) {
+        const auto& v0 = vertices[ix(0)];
+        const auto& v1 = vertices[ix(1)];
+        const auto& v2 = vertices[ix(2)];
         const float &dist = intersect_ray_with_triangle(origin, dir, v0, v1, v2);
         min_dist = std::min(min_dist, dist);
     }

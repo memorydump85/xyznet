@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
 
     std::ifstream infile1(model_filename);
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(infile1);
-    printf("# Loaded model with %lu vertices, %lu faces\n", mesh.vertices.size(), mesh.indices.size() / 3);
+    printf("# Loaded model with %lu vertices, %lu faces\n", mesh.vertices.size(), mesh.ix_tuples.size());
 
     // The trajectory file is also an OBJ file. We treat the vertices as
     // sensor position specifications and use the corresponding vertex
