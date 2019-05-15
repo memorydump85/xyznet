@@ -4,6 +4,8 @@
 #include <unordered_set>
 
 #include <cppkit/string.hh>
+#include <cppkit/mathx.hh>
+#include <cppkit/rigidbody.hh>
 #include <Eigen/Dense>
 
 
@@ -56,6 +58,45 @@ public:
     Eigen::Vector3f intersect_ray(const Eigen::Vector3f &origin, const Eigen::Vector3f &dir ) const
         { return origin + dir * cast_ray(origin, dir); }
 };
+
+
+//-------------------------------------
+struct LidarSensorScanGenerator {
+//-------------------------------------
+    static const float START_ANGLE;
+    static const float ANGLE_RANGE;
+    static const std::size_t NUM_RAYS_PER_SCAN = 1080;
+    static const std::size_t NUM_SCANS = 32;
+
+    const Eigen::Vector3f pos;
+    const Eigen::Matrix3f rot_;
+    std::size_t ray_ix_ = 0;
+
+    LidarSensorScanGenerator(
+        const Eigen::Vector3f &xyz,
+        const Eigen::Vector3f &rph )
+        : pos(xyz)
+        , rot_(cppkit::mathx::rotation_matrix(rph(0), rph(1), rph(2)).block(0, 0, 3, 3))
+    {}
+
+    bool has_next() const
+        { return ray_ix_ < (NUM_SCANS * NUM_RAYS_PER_SCAN); }
+
+    /// Peek the next ray direction
+    Eigen::Vector3f peek() const;
+
+    /// Return the next ray direction
+    Eigen::Vector3f next();
+
+    /// Get a vector containing rays for an entire scan
+    static
+    std::vector<Eigen::Vector3f> get_scan(
+        const Eigen::Vector3f &pos,
+        const Eigen::Vector3f &orientation );
+};
+
+const float LidarSensorScanGenerator::START_ANGLE = cppkit::mathx::to_radians(+185.f);
+const float LidarSensorScanGenerator::ANGLE_RANGE = cppkit::mathx::to_radians(350.f);
 
 
 
@@ -212,4 +253,37 @@ float TriangleMesh::cast_ray(
         min_dist = std::min(min_dist, dist);
     }
     return min_dist;
+}
+
+
+Eigen::Vector3f LidarSensorScanGenerator::peek() const {
+    const auto &DEL_THETA = ANGLE_RANGE / NUM_RAYS_PER_SCAN;
+    const auto &theta = START_ANGLE + (ray_ix_ % NUM_RAYS_PER_SCAN) * DEL_THETA;
+
+    const auto &scan_ix = ray_ix_ / NUM_RAYS_PER_SCAN;
+    const auto &phi = cppkit::mathx::to_radians(90 + 3*(-16.f + scan_ix));
+
+    const auto &xyz = Eigen::Vector3f(cos(theta)*sin(phi), sin(theta)*sin(phi), cos(phi));
+    return rot_ * xyz;
+}
+
+
+Eigen::Vector3f LidarSensorScanGenerator::next() {
+    const auto& dir = peek();
+    ++ray_ix_;
+    return dir;
+}
+
+
+std::vector<Eigen::Vector3f> LidarSensorScanGenerator::get_scan(
+    const Eigen::Vector3f &pos,
+    const Eigen::Vector3f &orientation )
+{
+    std::vector<Eigen::Vector3f> rays;
+    rays.reserve(LidarSensorScanGenerator::NUM_SCANS * LidarSensorScanGenerator::NUM_RAYS_PER_SCAN);
+
+    for (LidarSensorScanGenerator s(pos, orientation); s.has_next(); s.next()) {
+        rays.push_back(s.peek());
+    }
+    return std::move(rays);
 }

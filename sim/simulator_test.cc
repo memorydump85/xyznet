@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <fstream>
 
 #include <cppkit/mathx.hh>
 #include <cppkit/test_framework.hh>
@@ -76,6 +77,29 @@ DEFINE_TEST(load_wavefront) {
     CHECK( mesh.vertices.size() == 3 );
     CHECK( mesh.indices.size() == 6 );
     CHECK( mesh.normals.size() == 2 );
+}
+
+
+DEFINE_TEST(ray_cast_regression_test) {
+    std::ifstream model_obj("models/__ray_cast_regression_test_0__.obj");
+    TriangleMesh mesh = TriangleMesh::from_wavefront_obj(model_obj);
+
+    const auto &pos = Eigen::Vector3f(-1.00, 0.00, 0.25);
+    const auto &orientation = Eigen::Vector3f(0, 0, 0);
+    const auto &scan_dirs = LidarSensorScanGenerator::get_scan(pos, orientation);
+    const auto MAX_RAY_DIST = 30.f;
+
+    std::vector<Eigen::Vector3f> results;
+    for (const auto &dir : scan_dirs) {
+        const float dist = mesh.cast_ray(pos, dir);
+        if (dist >= MAX_RAY_DIST) continue;
+        results.push_back(pos + dist * dir);
+    }
+
+    std::ifstream result_obj("models/__ray_cast_regression_result_0__.obj");
+    TriangleMesh expected = TriangleMesh::from_wavefront_obj(result_obj);
+
+    CHECK( results.size() == expected.vertices.size()  );
 }
 
 
