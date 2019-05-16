@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
                 "Trajectory does not specify an orientation for all positions" );
 
     std::size_t vx_offset = 1;
-    const auto MAX_RAY_DIST = 30.f;
+    const auto MAX_RAY_DIST = 100.f;
 
     /// Noise model
     std::random_device rand_device;

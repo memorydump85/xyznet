@@ -69,6 +69,7 @@ bool ray_intersects_box(
     const Eigen::Vector3f &vmax     /// highest vertex
 )
 {
+#ifdef UNROLL_RAY_BOX_INTERSECTION
     const float tx0 = (vmin.x() - origin.x()) / dir.x();
     const float tx1 = (vmax.x() - origin.x()) / dir.x();
     const float ty0 = (vmin.y() - origin.y()) / dir.y();
@@ -81,6 +82,15 @@ bool ray_intersects_box(
     const float t_max = max({ min(tx0, tx1), min(ty0, ty1), min(tz0, tz1) });
     const float t_min = min({ max(tx0, tx1), max(ty0, ty1), max(tz0, tz1) });
     return (t_min > 0) && (t_max < t_min);
+#else
+    const auto &inv_dir = dir.array().inverse();
+    const auto &t0 = (vmin - origin).array() * inv_dir;
+    const auto &t1 = (vmax - origin).array() * inv_dir;
+    const auto &tmin = t0.cwiseMin(t1);
+    const auto &tmax = t0.cwiseMax(t1);
+
+    return tmin.maxCoeff() <= tmax.minCoeff();
+#endif
 }
 
 
