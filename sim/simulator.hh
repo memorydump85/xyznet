@@ -78,17 +78,16 @@ struct LidarSensorScanGenerator {
 //-------------------------------------
 class XYZGrid {
 //-------------------------------------
-private:
-    const Eigen::Vector3f lbound_;  /// [ min(x), min(y), min(z) ]
-    const Eigen::Vector3f ubound_;  /// [ max(x), max(y), max(z) ]
-    const float cellsize_;
+public:
+    const Eigen::Vector3f lbound;  /// [ min(x), min(y), min(z) ]
+    const Eigen::Vector3f ubound;  /// [ max(x), max(y), max(z) ]
+    const float cellsize;
 
     XYZGrid(
         const Eigen::Vector3f &lbound,
         const Eigen::Vector3f &ubound,
         const float &cellsize );
 
-public:
     template<class C>
     static XYZGrid with_cell_size(
         const float &cellsize,
@@ -115,8 +114,8 @@ public:
     std::pair<Eigen::Vector3f, Eigen::Vector3f>
     cell_bounds(int i, int j, int k) const {
         return std::make_pair(
-            lbound_ + Eigen::Vector3f(i,   j,   k  ) * cellsize_,
-            lbound_ + Eigen::Vector3f(i+1, j+1, k+1) * cellsize_
+            lbound + Eigen::Vector3f(i,   j,   k  ) * cellsize,
+            lbound + Eigen::Vector3f(i+1, j+1, k+1) * cellsize
         );
     }
 
@@ -133,8 +132,8 @@ public:
         const Eigen::Vector3f &vmax ) const
     {
         return std::make_pair(
-            ((vmin - lbound_) / cellsize_).array().floor().cast<int>(),
-            ((vmax - lbound_) / cellsize_).array().ceil().cast<int>() + 1
+            ((vmin - lbound) / cellsize).array().floor().cast<int>(),
+            ((vmax - lbound) / cellsize).array().ceil().cast<int>() + 1
         );
     }
 };

@@ -250,12 +250,12 @@ std::vector<Eigen::Vector3f> LidarSensorScanGenerator::get_scan(
 
 
 XYZGrid::XYZGrid(
-        const Eigen::Vector3f &lbound,
-        const Eigen::Vector3f &ubound,
-        const float &cellsize)
-    : lbound_(lbound)
-    , ubound_(ubound)
-    , cellsize_(cellsize)
+        const Eigen::Vector3f &lbound_,
+        const Eigen::Vector3f &ubound_,
+        const float &cellsize_)
+    : lbound(lbound_)
+    , ubound(ubound_)
+    , cellsize(cellsize_)
 {
     CHECK( cellsize > 0 );
 
@@ -348,12 +348,20 @@ IndexedTriangleMesh IndexedTriangleMesh::from_wavefront_obj(
 
 float IndexedTriangleMesh::cast_ray(
     const Eigen::Vector3f &origin,
-    const Eigen::Vector3f &dir ) const
+const Eigen::Vector3f &dir ) const
 {
-    float min_dist = std::numeric_limits<float>::infinity();
+    const auto &INF = std::numeric_limits<float>::infinity();
+
+    if (false == ray_intersects_box(origin, dir, grid_.lbound, grid_.ubound)) {
+        return INF;
+    }
+
+    float min_dist = INF;
     for (const auto &c : cells_) {
         const auto &[cmin, cmax] = grid_.cell_bounds(grid_.lift_ix(c.first));
-        if (false == ray_intersects_box(origin, dir, cmin, cmax)) continue;
+        if (false == ray_intersects_box(origin, dir, cmin, cmax)) {
+            continue;
+        }
 
         for (const auto &ix : c.second) {
             const auto& v0 = vertices[ix(0)];
