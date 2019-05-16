@@ -1,2 +1,4 @@
 models/*.obj
 models/*.off
+models/*/*
+*.o

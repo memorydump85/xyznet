@@ -4,6 +4,9 @@
 #include <vector>
 #include <random>
 
+#include <cppkit/string.hh>
+#include <cppkit/rigidbody.hh>
+
 #include "simulator.hh"
 
 
@@ -47,7 +50,11 @@ int main(int argc, char *argv[]) {
     const char *trajectory_filename = argv[2];
 
     std::ifstream infile1(model_filename);
+#ifndef NO_MESH_INDEX
+    IndexedTriangleMesh mesh = IndexedTriangleMesh::from_wavefront_obj(infile1, 125);
+#else
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(infile1);
+#endif
     printf("# Loaded model with %lu vertices, %lu faces\n", mesh.vertices.size(), mesh.ix_tuples.size());
 
     // The trajectory file is also an OBJ file. We treat the vertices as

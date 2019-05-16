@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include <cppkit/mathx.hh>
+#include <cppkit/rigidbody.hh>
 #include <cppkit/test_framework.hh>
 
 #include "simulator.hh"
@@ -10,6 +11,12 @@
 
 using Vec3 = Eigen::Vector3f;
 
+
+//
+// Ray triangle
+//
+
+
 const Vec3 TRIANGLE[3] = {
     Vec3(+0.0f, +0.0f, +0.0f),
     Vec3(+1.0f, +0.0f, +0.0f),
@@ -17,7 +24,16 @@ const Vec3 TRIANGLE[3] = {
 };
 
 
-DEFINE_TEST(simple_intersection) {
+float intersect_ray_with_triangle(
+    const Eigen::Vector3f &origin,  /// ray origin
+    const Eigen::Vector3f &dir,     /// ray direction
+    const Eigen::Vector3f &v0,      /// triangle vertex1
+    const Eigen::Vector3f &v1,      /// triangle vertex2
+    const Eigen::Vector3f &v2       /// triangle vertex3
+);
+
+
+DEFINE_TEST(ray_triangle_simple_intersection) {
     auto dist = intersect_ray_with_triangle(
         Vec3(+0.5f, +0.5f, +1.0f),
         Vec3(+0.0f, +0.0f, -1.0f),
@@ -27,8 +43,7 @@ DEFINE_TEST(simple_intersection) {
 }
 
 
-#include <iostream>
-DEFINE_TEST(no_intersection) {
+DEFINE_TEST(ray_triangle_no_intersection) {
     // Wrong ray direction
     auto dist = intersect_ray_with_triangle(
         Vec3(+0.5f, +0.5f, -1.0f),
@@ -63,6 +78,51 @@ DEFINE_TEST(no_intersection) {
 }
 
 
+//
+// Ray box
+//
+
+
+const Vec3 BOX[2] = {
+    Vec3(-1.0f, -1.0f, -1.0f),
+    Vec3(+1.0f, +1.0f, +1.0f),
+};
+
+
+bool ray_intersects_box(
+    const Eigen::Vector3f &origin,  /// ray origin
+    const Eigen::Vector3f &dir,     /// ray direction
+    const Eigen::Vector3f &vmin,    /// lowest vertex
+    const Eigen::Vector3f &vmax     /// highest vertex
+);
+
+
+DEFINE_TEST(ray_box_simple_intersection) {
+    auto result = ray_intersects_box(
+        Vec3(-2.0f, +0.0f, +0.0f),
+        Vec3(+1.0f, +0.0f, +0.0f),
+        BOX[0], BOX[1]
+    );
+    CHECK(true == result);
+}
+
+
+DEFINE_TEST(ray_box_no_intersection) {
+    // Wrong ray direction
+    auto result = ray_intersects_box(
+        Vec3(-2.0f, +0.0f, +0.0f),
+        Vec3(+0.0f, +1.0f, +0.0f),
+        BOX[0], BOX[1]
+    );
+    CHECK(false == result);
+}
+
+
+//
+// OBJ loading
+//
+
+
 DEFINE_TEST(load_wavefront) {
     std::istringstream ss(
         "v 0.0 0.0 0.0\n"
@@ -80,9 +140,15 @@ DEFINE_TEST(load_wavefront) {
 }
 
 
+
+//
+// Ray casting
+//
+
+
 DEFINE_TEST(ray_cast_regression_test) {
     std::ifstream model_obj("models/__ray_cast_regression_test_0__.obj");
-    TriangleMesh mesh = TriangleMesh::from_wavefront_obj(model_obj);
+    IndexedTriangleMesh mesh = IndexedTriangleMesh::from_wavefront_obj(model_obj, 125);
 
     const auto &pos = Eigen::Vector3f(-1.00, 0.00, 0.25);
     const auto &orientation = Eigen::Vector3f(0, 0, 0);
