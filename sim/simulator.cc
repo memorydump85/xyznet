@@ -83,6 +83,12 @@ bool ray_intersects_box(
     const float t_min = min({ max(tx0, tx1), max(ty0, ty1), max(tz0, tz1) });
     return (t_min > 0) && (t_max < t_min);
 #else
+    //
+    // This implementation is described in:
+    //
+    // A Ray-Box Intersection Algorithm and Efficient Dynamic Voxel Rendering
+    // by Majercik, Crassin, Shirley, and McGuire
+    //
     const auto &inv_dir = dir.array().inverse();
     const auto &t0 = (vmin - origin).array() * inv_dir;
     const auto &t1 = (vmax - origin).array() * inv_dir;
