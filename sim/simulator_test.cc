@@ -135,10 +135,57 @@ DEFINE_TEST(load_wavefront) {
     );
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(ss);
     CHECK( mesh.vertices.size() == 3 );
-    CHECK( mesh.ix_tuples.size() == 2 );
+    CHECK( mesh.vix_tuples.size() == 2 );
     CHECK( mesh.normals.size() == 2 );
 }
 
+
+//
+// Binner3D
+//
+
+
+DEFINE_TEST(binner_3D_create) {
+    using namespace Eigen;
+    using Vector3u = Eigen::Matrix<std::size_t, 3, 1>;
+
+    std::vector<Vector3f> vertices({
+        Vector3f(0, 0, 0),
+        Vector3f(2, 2, 2)
+    });
+
+    auto b0 = Binner3D::with_bin_size(1.f, vertices);
+    CHECK( b0.bin_counts().isApprox(Vector3u(2, 2, 2)) );
+
+    auto b1 = Binner3D::with_bin_count(8, vertices);
+    CHECK( cppkit::mathx::is_close(b1.binsize, 1.f)  );
+    CHECK( b1.bin_counts().isApprox(Vector3u(2, 2, 2)) );
+}
+
+
+DEFINE_TEST(binner_3D_binning) {
+    using namespace Eigen;
+
+    std::vector<Vector3f> vertices({
+        Vector3f(0, 0, 0),
+        Vector3f(2, 2, 2)
+    });
+
+    auto b0 = Binner3D::with_bin_size(1.f, vertices);
+    CHECK( b0.bin(Vector3f(0.1f, 0.1f, 0.1f)).isApprox(Vector3i(0, 0, 0)) );
+    CHECK( b0.bin(Vector3f(1.1f, 1.1f, 1.1f)).isApprox(Vector3i(1, 1, 1)) );
+    CHECK( b0.bin(Vector3f(1.0f, 1.0f, 1.0f)).isApprox(Vector3i(1, 1, 1)) );
+    CHECK( b0.bin(Vector3f(2.0f, 2.0f, 2.0f)).isApprox(Vector3i(2, 2, 2)) );
+
+    auto d = b0.box_domain(Vector3f(0.1, 0.1, 0.1), Vector3f(1.5, 1.5, 1.5));
+    CHECK( d.first.isApprox(Vector3i(0, 0, 0)) && d.second.isApprox(Vector3i(2, 2, 2)) );
+
+    d = b0.box_domain(Vector3f(0.1, 0.1, 0.1), Vector3f(0.99, 0.99, 0.99));
+    CHECK( d.first.isApprox(Vector3i(0, 0, 0)) && d.second.isApprox(Vector3i(1, 1, 1)) );
+
+    d = b0.box_domain(Vector3f(0.1, 0.1, 0.1), Vector3f(0.9, 2.1, 3.0));
+    CHECK( d.first.isApprox(Vector3i(0, 0, 0)) && d.second.isApprox(Vector3i(1, 3, 3)) );
+}
 
 
 //

@@ -146,7 +146,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
     };
 
     std::vector<Eigen::Vector3f> vertices;
-    std::vector<Eigen::Vector3i> ix_tuples;
+    std::vector<Eigen::Vector3i> vix_tuples;
     std::vector<Eigen::Vector3f> normals;
 
     const auto part1 = [] (const std::string &s, const char sep = '/') {
@@ -174,7 +174,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
             normals.emplace_back(i, j, k);
         }
         else if (tok0 == "f") {
-            // NOTE: OBJ file-format specifies 1-based vertex ix_tuples
+            // NOTE: OBJ file-format specifies 1-based vertex vix_tuples
             std::size_t i = std::stoul(part1(tokens.next())) - 1;
             std::size_t j = std::stoul(part1(tokens.next())) - 1;
             std::size_t k = std::stoul(part1(tokens.next())) - 1;
@@ -182,7 +182,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
             CHECK( i < vertices.size() );
             CHECK( j < vertices.size() );
             CHECK( k < vertices.size() );
-            ix_tuples.emplace_back(i, j, k);
+            vix_tuples.emplace_back(i, j, k);
 
             if (tokens.has_next()) fail( ERR_TRIFACES_ONLY );
         }
@@ -197,7 +197,7 @@ TriangleMesh TriangleMesh::from_wavefront_obj(std::istream& is) {
         }
     }
 
-    return std::move(TriangleMesh(vertices, ix_tuples, normals));
+    return std::move(TriangleMesh(vertices, vix_tuples, normals));
 }
 
 
@@ -207,7 +207,7 @@ float TriangleMesh::cast_ray(
 ) const
 {
     float min_dist = std::numeric_limits<float>::infinity();
-    for (const auto &ix : ix_tuples) {
+    for (const auto &ix : vix_tuples) {
         const auto& v0 = vertices[ix(0)];
         const auto& v1 = vertices[ix(1)];
         const auto& v2 = vertices[ix(2)];
@@ -261,25 +261,25 @@ std::vector<Eigen::Vector3f> LidarSensorScanGenerator::get_scan(
 
 
 //
-// XYZGrid method implementations
+// Binner3D method implementations
 //
 
 
-XYZGrid::XYZGrid(
+Binner3D::Binner3D(
         const Eigen::Vector3f &lbound_,
         const Eigen::Vector3f &ubound_,
-        const float &cellsize_)
+        const float &binsize_)
     : lbound(lbound_)
     , ubound(ubound_)
-    , cellsize(cellsize_)
+    , binsize(binsize_)
 {
-    CHECK( cellsize > 0 );
+    CHECK( binsize > 0 );
 
-    const auto &cell_counts = ((ubound - lbound) / cellsize).array().floor().cast<int>();
-    CHECK_MSG( cell_counts.minCoeff() >= 0,
-        cppkit::strfmt("counts = {%d, %d, %d}", cell_counts(0), cell_counts(1), cell_counts(2)) );
-    CHECK_MSG( cell_counts.minCoeff() < 0xffff,
-        cppkit::strfmt("`cellsize == %f` is too small", cellsize) );
+    const auto &bin_counts = ((ubound - lbound) / binsize).array().floor().cast<int>();
+    CHECK_MSG( bin_counts.minCoeff() >= 0,
+        cppkit::strfmt("counts = {%d, %d, %d}", bin_counts(0), bin_counts(1), bin_counts(2)) );
+    CHECK_MSG( bin_counts.minCoeff() < 0xffff,
+        cppkit::strfmt("`binsize == %f` is too small", binsize) );
 }
 
 
@@ -295,24 +295,22 @@ static inline auto bounds_(const C& vertices) {
 }
 
 
-template<class C>
-XYZGrid XYZGrid::with_cell_size(
-    const float &cellsize,
-    const C& vertices )
+Binner3D Binner3D::with_bin_size(
+    const float &binsize,
+    const std::vector<Eigen::Vector3f>& vertices )
 {
     const auto &[lbound, ubound] = bounds_(vertices);
-    return XYZGrid(lbound, ubound, cellsize);
+    return Binner3D(lbound, ubound, binsize);
 }
 
 
-template<class C>
-XYZGrid XYZGrid::with_cell_count(
-    const std::size_t &cell_count,
-    const C& vertices)
+Binner3D Binner3D::with_bin_count(
+    const std::size_t &bin_count,
+    const std::vector<Eigen::Vector3f>& vertices)
 {
     const auto &[lbound, ubound] = bounds_(vertices);
-    const auto& cellsize = pow((ubound - lbound).prod() / cell_count, 1./3.);
-    return XYZGrid(lbound, ubound, cellsize);
+    const auto& binsize = pow((ubound - lbound).prod() / bin_count, 1./3.);
+    return Binner3D(lbound, ubound, binsize);
 }
 
 
@@ -325,29 +323,31 @@ IndexedTriangleMesh::IndexedTriangleMesh(
     const std::vector<Eigen::Vector3f> &vx,
     const std::vector<Eigen::Vector3i> &ix,
     const std::vector<Eigen::Vector3f> &nm,
-    const std::size_t &cell_count )
+    const std::size_t &bin_count )
     : vertices(vx)
     , normals(nm)
-    , ix_tuples(ix)
-    , grid_(XYZGrid::with_cell_count(cell_count, vx))
+    , vix_tuples(ix)
+    , binner_(Binner3D::with_bin_count(bin_count, vx))
+    , ix_mapper_()
 {
-    for (const auto &ix : ix_tuples) {
+    for (const auto &ix : vix_tuples) {
         const auto &v0 = vertices[ix(0)];
         const auto &v1 = vertices[ix(1)];
         const auto &v2 = vertices[ix(2)];
 
-        // Add triangle to covered cells
+        // Add triangle to covered bins
         const auto &vmin = v0.cwiseMin(v1).cwiseMin(v2);
         const auto &vmax = v0.cwiseMax(v1).cwiseMax(v2);
 
-        const auto &[r, s] = grid_.covered_cell_range(vmin, vmax);
+        const float slop = 1e-6f;
+        const auto &[r, s] = binner_.box_domain(vmin, vmax.array() + slop);
         CHECK( r.minCoeff() >= 0 );
         CHECK( s.minCoeff() >= 0 );
 
         for (int i = r.x(); i < s.x(); ++i)
             for (int j = r.y(); j < s.y(); ++j)
                 for (int k = r.z(); k < s.z(); ++k) {
-                    cells_[grid_.flat_ix(i, j, k)].push_back(ix);
+                    bins_[ix_mapper_.flatten(i, j, k)].push_back(ix);
                 }
     }
 }
@@ -355,10 +355,10 @@ IndexedTriangleMesh::IndexedTriangleMesh(
 
 IndexedTriangleMesh IndexedTriangleMesh::from_wavefront_obj(
     std::istream& is,
-    const std::size_t &cell_count)
+    const std::size_t &bin_count)
 {
     TriangleMesh mesh = TriangleMesh::from_wavefront_obj(is);
-    return IndexedTriangleMesh(mesh.vertices, mesh.ix_tuples, mesh.normals, cell_count);
+    return IndexedTriangleMesh(mesh.vertices, mesh.vix_tuples, mesh.normals, bin_count);
 }
 
 
@@ -368,13 +368,13 @@ const Eigen::Vector3f &dir ) const
 {
     const auto &INF = std::numeric_limits<float>::infinity();
 
-    if (false == ray_intersects_box(origin, dir, grid_.lbound, grid_.ubound)) {
+    if (false == ray_intersects_box(origin, dir, binner_.lbound, binner_.ubound)) {
         return INF;
     }
 
     float min_dist = INF;
-    for (const auto &c : cells_) {
-        const auto &[cmin, cmax] = grid_.cell_bounds(grid_.lift_ix(c.first));
+    for (const auto &c : bins_) {
+        const auto &[cmin, cmax] = binner_.bin_range(ix_mapper_.unravel(c.first));
         if (false == ray_intersects_box(origin, dir, cmin, cmax)) {
             continue;
         }

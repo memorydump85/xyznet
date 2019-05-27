@@ -10,7 +10,7 @@ class TriangleMesh {
 public:
     const std::vector<Eigen::Vector3f> vertices;
     const std::vector<Eigen::Vector3f> normals;
-    const std::vector<Eigen::Vector3i> ix_tuples;
+    const std::vector<Eigen::Vector3i> vix_tuples;
 
 public:
     TriangleMesh(
@@ -19,7 +19,7 @@ public:
         const std::vector<Eigen::Vector3f> &nm )
         : vertices(vx)
         , normals(nm)
-        , ix_tuples(ix)
+        , vix_tuples(ix)
         { }
 
     /// Load mesh from .OBJ file
@@ -75,66 +75,107 @@ struct LidarSensorScanGenerator {
 };
 
 
+///
+/// Quantize 3 dimensional values into bins of a specified size.
+///
+//------------------------------------
+class Binner3D {
 //-------------------------------------
-class XYZGrid {
-//-------------------------------------
-public:
-    const Eigen::Vector3f lbound;  /// [ min(x), min(y), min(z) ]
-    const Eigen::Vector3f ubound;  /// [ max(x), max(y), max(z) ]
-    const float cellsize;
+    using SizeVector3 = Eigen::Matrix<std::size_t, 3, 1>;
 
-    XYZGrid(
+public:
+    const Eigen::Vector3f lbound;   /// [ min(x), min(y), min(z) ]
+    const Eigen::Vector3f ubound;   /// [ max(x), max(y), max(z) ]
+    const float binsize;            /// resolution. same for all dimensions
+
+    Binner3D(
         const Eigen::Vector3f &lbound,
         const Eigen::Vector3f &ubound,
-        const float &cellsize );
+        const float &binsize );
 
-    template<class C>
-    static XYZGrid with_cell_size(
-        const float &cellsize,
-        const C& vertices );
+    static Binner3D with_bin_size(
+        const float &binsize,
+        const std::vector<Eigen::Vector3f>& vertices );
 
-    template<class C>
-    static XYZGrid with_cell_count(
-        const std::size_t &cell_count,
-        const C& vertices );
+    /// Create a Binner3D object which bins values into `bin_count`
+    /// total bins. Bins are constructed such that each dimension has
+    /// `pow(bin_count, 1.0/3)` bins.
+    static Binner3D with_bin_count(
+        const std::size_t &bin_count,
+        const std::vector<Eigen::Vector3f>& vertices );
 
-    /// XYZGrid index to linear index
-    uint64_t flat_ix(uint64_t i, uint64_t j, uint64_t k) const
-        { return (i << 32) | (j << 16) | k; }
 
-    /// XYZGrid index to linear index
-    uint64_t flat_ix(const Eigen::Vector3i &v) const
-        { return flat_ix(v(0), v(1), v(2)); }
+    /// Get bin index for point
+    Eigen::Vector3i bin(const Eigen::Vector3f &p) const
+        { return ((p - lbound) / binsize).array().floor().cast<int>(); }
 
-    /// Extract grid index from linear index
-    Eigen::Vector3i lift_ix(const uint64_t &i) const
-        { return Eigen::Vector3i((i >> 32) & 0xffff, (i >> 16) & 0xffff, i & 0xffff); }
-
-    /// Get bounds of the grid cell at (i, j, k)
+    /// Get the range of values that are discretized into the bin
+    /// represented by (i, j, k)
     std::pair<Eigen::Vector3f, Eigen::Vector3f>
-    cell_bounds(int i, int j, int k) const {
+    bin_range(int i, int j, int k) const {
         return std::make_pair(
-            lbound + Eigen::Vector3f(i,   j,   k  ) * cellsize,
-            lbound + Eigen::Vector3f(i+1, j+1, k+1) * cellsize
+            lbound + Eigen::Vector3f(i,   j,   k  ) * binsize,
+            lbound + Eigen::Vector3f(i+1, j+1, k+1) * binsize
         );
     }
 
-    /// Get bounds of the grid cell at (i, j, k)
+    /// Get the range of values that are discretized into the bin
+    /// represented by (i, j, k)
     std::pair<Eigen::Vector3f, Eigen::Vector3f>
-    cell_bounds(const Eigen::Vector3i &i) const
-        { return cell_bounds(i(0), i(1), i(2)); }
+    bin_range(const Eigen::Vector3i &i) const
+        { return bin_range(i(0), i(1), i(2)); }
 
-    /// Get cells covered by the box with lower bound `vmin` and
-    /// upper bound `vmax`.
+    /// Get bins covered by the box with inclusive lower bound `vmin` and
+    /// exclusive upper bound `vmax`.
     std::pair<Eigen::Vector3i, Eigen::Vector3i>
-    covered_cell_range(
+    box_domain(
         const Eigen::Vector3f &vmin,
         const Eigen::Vector3f &vmax ) const
     {
-        return std::make_pair(
-            ((vmin - lbound) / cellsize).array().floor().cast<int>(),
-            ((vmax - lbound) / cellsize).array().ceil().cast<int>() + 1
-        );
+        const auto &lo = ((vmin - lbound) / binsize).array().floor().cast<int>();
+        const auto &hi = ((vmax - lbound) / binsize).array().ceil().cast<int>();
+        // `hi` should be at least 1 more than `lo` in all dimensions
+        return std::make_pair(lo, lo + (hi - lo).cwiseMax(1));
+    }
+
+    /// Get dimensional bin counts
+    SizeVector3 bin_counts() const {
+        return ((ubound - lbound) / binsize).array().ceil().cast<std::size_t>().cwiseMax(1);
+    }
+};
+
+
+///
+/// Converter that translates between 3D and linear indices.
+///
+/// A typical implementation would use a 3 dimensional size
+/// specifications to translate from 3D to linear indices. In this
+/// implementation, however, we assume that the 3D index values can be
+/// represented using at most 20 bits and hence are in the closed
+/// interval [0, 2^21 - 1]
+///
+//-------------------------------------
+class IndexMapper3D {
+//-------------------------------------
+public:
+    static const std::size_t MAX_INDEX = 0xfffff;
+
+    /// Convert 3D index to linear index
+    std::size_t flatten(std::size_t i, std::size_t j, std::size_t k) const {
+        CHECK( (i <= MAX_INDEX) && (j <= MAX_INDEX) && (k <= MAX_INDEX) );
+        { return (i << 40) | (j << 20) | k; }
+    }
+
+    /// Convert 3D index to linear index
+    uint64_t flatten(const Eigen::Vector3i &v) const {
+        CHECK( v.minCoeff() >= 0 );
+        return flatten(v(0), v(1), v(2));
+    }
+
+    /// Extract 3D index from linear index
+    Eigen::Vector3i unravel(const uint64_t &i) const {
+        const std::size_t MASK_20LSB = 0xfffff;
+        return Eigen::Vector3i((i >> 40) & MASK_20LSB, (i >> 20) & MASK_20LSB, i & MASK_20LSB);
     }
 };
 
@@ -145,25 +186,26 @@ class IndexedTriangleMesh {
 public:
     const std::vector<Eigen::Vector3f> vertices;
     const std::vector<Eigen::Vector3f> normals;
-    const std::vector<Eigen::Vector3i> ix_tuples;
+    const std::vector<Eigen::Vector3i> vix_tuples;  /// Triangle vertex indices
 
 private:
-    const XYZGrid grid_;
-    using cell_contents_t_ = std::vector<Eigen::Vector3i>;
-    std::unordered_map<uint64_t, cell_contents_t_> cells_;
+    const Binner3D binner_;
+    const IndexMapper3D ix_mapper_;
+    using bin_contents_t = std::vector<Eigen::Vector3i>;
+    std::unordered_map<uint64_t, bin_contents_t> bins_;
 
 public:
     IndexedTriangleMesh(
         const std::vector<Eigen::Vector3f> &vx,
         const std::vector<Eigen::Vector3i> &ix,
         const std::vector<Eigen::Vector3f> &nm,
-        const std::size_t &cell_count );
+        const std::size_t &bin_count );
 
     /// Load mesh from .OBJ file
     static
     IndexedTriangleMesh from_wavefront_obj(
         std::istream& is,
-        const std::size_t &cell_count );
+        const std::size_t &bin_count );
 
     /// Perform ray casting
     /// return distance of intersection from ray origin
