@@ -248,12 +248,12 @@ Eigen::Vector3f LidarSensorScanGenerator::next() {
 
 std::vector<Eigen::Vector3f> LidarSensorScanGenerator::get_scan(
     const Eigen::Vector3f &pos,
-    const Eigen::Vector3f &orientation )
+    const Eigen::Vector3f &euler_rotation )
 {
     std::vector<Eigen::Vector3f> rays;
     rays.reserve(LidarSensorScanGenerator::NUM_SCANS * LidarSensorScanGenerator::NUM_RAYS_PER_SCAN);
 
-    for (LidarSensorScanGenerator s(pos, orientation); s.has_next(); s.next()) {
+    for (LidarSensorScanGenerator s(pos, euler_rotation); s.has_next(); s.next()) {
         rays.push_back(s.peek());
     }
     return std::move(rays);

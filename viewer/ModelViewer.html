@@ -134,7 +134,7 @@ f 4 5 6
 
         sourceLines = document.getElementById('source').value.split('\n');
         for (let lineNum=0; lineNum < sourceLines.length; ++lineNum) {
-            const sourceLine = sourceLines[lineNum].trimEnd();
+            const sourceLine = sourceLines[lineNum].trim();
             if (sourceLine == "" || sourceLine.startsWith("#")) {
                 continue;
             }

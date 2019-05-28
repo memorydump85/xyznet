@@ -71,7 +71,7 @@ struct LidarSensorScanGenerator {
     static
     std::vector<Eigen::Vector3f> get_scan(
         const Eigen::Vector3f &pos,
-        const Eigen::Vector3f &orientation );
+        const Eigen::Vector3f &euler_rotation );
 };
 
 
