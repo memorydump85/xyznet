@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
     std::size_t vx_offset = 1;
     const auto MAX_RAY_DIST = 100.f;
 
-    // For each position in the trajectory, simulate a Lidar Scan
+    // Simulate LIDAR scans for a bunch of random pose pairs
     for (std::size_t i=0; i < 1024; ++i) {
         const auto &[pose1, pose2] = sensor_pose_generator.next_pose_pair();
 
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
             vx_offset += dbg__output_marker_(pose.xyz, pose.rph, vx_offset);
             std::cout << '\n';
 
-            for (LidarSensorScanGenerator scan(pose.xyz, pose.xyz); scan.has_next(); scan.next()) {
+            for (LidarSensorScanGenerator scan(pose.xyz, pose.rph); scan.has_next(); scan.next()) {
                 const float dist = mesh.cast_ray(pose.xyz, scan.peek()) + sensor_noise_model.sample();
                 if (dist >= MAX_RAY_DIST) continue;
                 const Eigen::Vector3f &p = pose.xyz + dist * scan.peek();
